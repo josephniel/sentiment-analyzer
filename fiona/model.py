@@ -1,5 +1,4 @@
-import tensorflow
-from tensorflow import keras
+from tensorflow import keras, nn, train
 
 
 def create_model(vocab_size=10000):
@@ -7,11 +6,11 @@ def create_model(vocab_size=10000):
 
     model.add(keras.layers.Embedding(vocab_size, 16))
     model.add(keras.layers.GlobalAveragePooling1D())
-    model.add(keras.layers.Dense(16, activation=tensorflow.nn.relu))
-    model.add(keras.layers.Dense(1, activation=tensorflow.nn.sigmoid))
+    model.add(keras.layers.Dense(16, activation=nn.relu))
+    model.add(keras.layers.Dense(1, activation=nn.sigmoid))
 
     model.compile(
-        optimizer=tensorflow.train.AdamOptimizer(),
+        optimizer=train.AdamOptimizer(),
         loss='binary_crossentropy',
         metrics=['accuracy']
     )

@@ -1,7 +1,7 @@
 from tensorflow import keras
 
-from preprocessor import preprocess_data
-from model import create_model
+from fiona.preprocessor import preprocess_data
+from fiona.model import create_model
 
 
 imdb = keras.datasets.imdb
