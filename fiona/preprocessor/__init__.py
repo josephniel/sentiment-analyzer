@@ -1,5 +1,3 @@
-from typing import List
-
 import ast
 import os
 
@@ -22,10 +20,10 @@ class TranslationPreprocessor:
             filename: str,
             source: str,
             target: str,
-    ) -> List[List[int]]:
+    ) -> str:
         self._sanitize_translations(filename, source, target)
         self._tokenize_translations(filename, source, target)
-        self._vectorize_translations(filename, source, target)
+        return self._vectorize_translations(filename, source, target)
 
     def _sanitize_translations(
             self,
@@ -84,7 +82,7 @@ class TranslationPreprocessor:
             filename: str,
             source: str,
             target: str,
-    ) -> None:
+    ) -> str:
         original_vectorizer = TextVectorizer(source)
         translated_vectorizer = TextVectorizer(target)
 
@@ -106,3 +104,5 @@ class TranslationPreprocessor:
 
         original_vectorizer.save_updated_word_index()
         translated_vectorizer.save_updated_word_index()
+
+        return write_path
