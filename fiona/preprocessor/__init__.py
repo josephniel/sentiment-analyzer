@@ -1,38 +1,50 @@
-from typing import Dict, List, Tuple
+from typing import List
 
-from fiona.types import LanguageText
-from fiona.preprocessor.indexer import WordIndexer
-from fiona.preprocessor.mutator import LanguageTextMutator
-from fiona.preprocessor.reader import CSVReader
-from fiona.preprocessor.sanitizer import TranslationSanitizer
-from fiona.preprocessor.writer import CSVWriter
+import ast
+import os
+
+from fiona.preprocessor.config import (
+    ORIGINAL_FILE_PATH,
+    SANITIZED_FILE_PATH,
+    TOKENIZED_FILE_PATH,
+    VECTORIZED_FILE_PATH,
+)
+from fiona.preprocessor.reader import csv_reader
+from fiona.preprocessor.sanitizer import sanitize_text
+from fiona.preprocessor.tokenizer import tokenize_text
+from fiona.preprocessor.vectorizer import TextVectorizer
+from fiona.preprocessor.writer import csv_writer
 
 
 class TranslationPreprocessor:
-
-    original_word_list: List[str] = []
-    translation_word_list: List[str] = []
-
     def process(
             self,
             filename: str,
             source: str,
             target: str,
     ) -> List[List[int]]:
-        with CSVReader.read(filename) as reader, CSVWriter.write(filename) as writer:  # NOQA
-            i = 0
+        self._sanitize_translations(filename, source, target)
+        self._tokenize_translations(filename, source, target)
+        self._vectorize_translations(filename, source, target)
+
+    def _sanitize_translations(
+            self,
+            filename: str,
+            source: str,
+            target: str,
+    ) -> None:
+        i = 0
+        read_path = os.path.join(ORIGINAL_FILE_PATH, filename)
+        write_path = os.path.join(SANITIZED_FILE_PATH, filename)
+        with csv_reader(read_path) as reader, csv_writer(write_path) as writer:
             for line in reader:
-                sanitized_original, sanitized_translation = (
-                    self._prepare_translation_texts(
-                        LanguageText(
-                            text=line[0],
-                            language_code=source,
-                        ),
-                        LanguageText(
-                            text=line[1],
-                            language_code=target
-                        )
-                    )
+                sanitized_original = sanitize_text(
+                    text=line[0],
+                    language_code=source,
+                )
+                sanitized_translation = sanitize_text(
+                    text=line[1],
+                    language_code=target
                 )
                 writer.writerow([
                     sanitized_original,
@@ -43,38 +55,54 @@ class TranslationPreprocessor:
                 if i == 10:
                     break
 
-    def _prepare_translation_texts(
+    def _tokenize_translations(
             self,
-            original: LanguageText,
-            translation: LanguageText,
-    ) -> Tuple[str, str]:
-        original, translation = TranslationSanitizer().sanitize(
-            original=original,
-            translation=translation,
-        )
+            filename: str,
+            source: str,
+            target: str,
+    ) -> None:
+        read_path = os.path.join(SANITIZED_FILE_PATH, filename)
+        write_path = os.path.join(TOKENIZED_FILE_PATH, filename)
+        with csv_reader(read_path) as reader, csv_writer(write_path) as writer:
+            for line in reader:
+                tokenized_original = tokenize_text(
+                    text=line[0],
+                    language_code=source,
+                )
+                tokenized_translation = tokenize_text(
+                    text=line[1],
+                    language_code=target
+                )
+                writer.writerow([
+                    str(tokenized_original),
+                    str(tokenized_translation),
+                    line[2]
+                ])
 
-        self.original_word_list = WordIndexer.index(
-            current_word_list=self.original_word_list,
-            language_text=original,
-        )
-        self.translation_word_list = WordIndexer.index(
-            current_word_list=self.translation_word_list,
-            language_text=translation,
-        )
-
-        return original.text, translation.text
-
-    def _mutate_language_text(
+    def _vectorize_translations(
             self,
-            language_text: LanguageText,
-            word_index: Dict[str, int],
-    ) -> List[int]:
-        return LanguageTextMutator.mutate(
-            language_text=language_text,
-            word_index=word_index,
-        )
+            filename: str,
+            source: str,
+            target: str,
+    ) -> None:
+        original_vectorizer = TextVectorizer(source)
+        translated_vectorizer = TextVectorizer(target)
 
+        read_path = os.path.join(TOKENIZED_FILE_PATH, filename)
+        write_path = os.path.join(VECTORIZED_FILE_PATH, filename)
+        with csv_reader(read_path) as reader, csv_writer(write_path) as writer:
+            for line in reader:
+                vectorized_original = original_vectorizer.vectorize_list(
+                    text_list=ast.literal_eval(line[0])
+                )
+                vectorized_translation = translated_vectorizer.vectorize_list(
+                    text_list=ast.literal_eval(line[1])
+                )
+                writer.writerow([
+                    str(vectorized_original),
+                    str(vectorized_translation),
+                    line[2]
+                ])
 
-if __name__ == "__main__":
-    processor = TranslationPreprocessor()
-    processor.process('en_ja_jobs.csv', 'en', 'ja')
+        original_vectorizer.save_updated_word_index()
+        translated_vectorizer.save_updated_word_index()
